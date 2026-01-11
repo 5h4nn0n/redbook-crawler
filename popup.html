@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="status">准备就绪</div>
+
+  <!-- 场景1：笔记详情页 -->
+  <div class="card" id="detail-panel">
+    <h3>📄 单篇笔记提取</h3>
+    <button id="extractDetailBtn" class="btn btn-red">提取当前笔记 JSON</button>
+  </div>
+
+  <!-- 场景2：博主主页 -->
+  <div class="card" id="profile-panel">
+    <h3>🕷️ 深度采集助手</h3>
+    <p style="font-size:11px; color:#888;">自动翻页、点击详情、采集评论 (速度较慢以防风控)</p>
+    <button id="extractProfileBtn" class="btn btn-blue">开始采集</button>
+    <button id="stopBtn" class="btn btn-gray hidden">停止采集</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>

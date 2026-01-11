@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "小红书全能提取器 (脑残版)",
+  "version": "1.0",
+  "description": "关爱残障人士，协助提取汇总小红书信息。支持发现页笔记详情提取、博主主页批量提取，一键导出JSON。让脑残人士也能轻松体验小红书带来的生活便利！禁止非法用途！",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "小红书信息提取"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.xiaohongshu.com/explore/*",
+        "https://www.xiaohongshu.com/discovery/*",
+        "https://www.xiaohongshu.com/user/profile/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
+}

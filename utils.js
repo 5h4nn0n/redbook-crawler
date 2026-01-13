@@ -1,4 +1,4 @@
-// 小红书爬虫工具函数库
+// 小红书采集器工具函数库
 (function () {
     'use strict';
 
@@ -12,7 +12,7 @@
         static async stopCrawler() {
             try {
                 await chrome.storage.local.set({ 'redbook_crawler_should_stop': true });
-                console.log("🛑 爬虫终止信号已发送（持久化存储），等待当前操作完成...");
+                console.log("🛑 采集器终止信号已发送（持久化存储），等待当前操作完成...");
             } catch (error) {
                 console.error("❌ 终止信号存储失败:", error);
                 // 降级方案：使用sessionStorage
@@ -28,25 +28,25 @@
                 // 优先检查Chrome存储
                 const result = await chrome.storage.local.get(['redbook_crawler_should_stop']);
                 if (result.redbook_crawler_should_stop) {
-                    console.log("🛑 爬虫被用户终止（持久化存储检测）");
+                    console.log("🛑 采集器被用户终止（持久化存储检测）");
                     // 清除终止标志
                     await chrome.storage.local.remove(['redbook_crawler_should_stop']);
-                    throw new Error("爬虫被用户终止");
+                    throw new Error("采集器被用户终止");
                 }
 
                 // 检查sessionStorage（降级方案）
                 if (sessionStorage.getItem('redbook_crawler_should_stop') === 'true') {
-                    console.log("🛑 爬虫被用户终止（sessionStorage检测）");
+                    console.log("🛑 采集器被用户终止（sessionStorage检测）");
                     sessionStorage.removeItem('redbook_crawler_should_stop');
-                    throw new Error("爬虫被用户终止");
+                    throw new Error("采集器被用户终止");
                 }
             } catch (error) {
                 // 如果Chrome存储API不可用，使用降级方案
                 if (error.message.includes('chrome.storage')) {
                     if (sessionStorage.getItem('redbook_crawler_should_stop') === 'true') {
-                        console.log("🛑 爬虫被用户终止（sessionStorage降级检测）");
+                        console.log("🛑 采集器被用户终止（sessionStorage降级检测）");
                         sessionStorage.removeItem('redbook_crawler_should_stop');
-                        throw new Error("爬虫被用户终止");
+                        throw new Error("采集器被用户终止");
                     }
                 } else {
                     throw error;
@@ -435,367 +435,367 @@
             throw new Error(errorDetails);
         }
 
-    /**
-     * 提取xsec_token
-     */
-    static extractXsecToken() {
-      const url = window.location.href;
-      console.log('🔍 开始提取xsec_token，当前URL:', url);
-      
-      // 方法1: 从URL参数中提取
-      const urlObj = new URL(url);
-      let xsecToken = urlObj.searchParams.get('xsec_token');
-      
-      if (xsecToken) {
-        console.log('✅ 方法1 - 从URL参数提取到xsec_token:', xsecToken);
-        return xsecToken;
-      }
-      
-      // 方法2: 从页面脚本中提取
-      try {
-        console.log('🔍 方法2 - 尝试从页面脚本提取xsec_token...');
-        
-        const scripts = document.querySelectorAll('script');
-        for (const script of scripts) {
-          const scriptText = script.textContent || '';
-          if (scriptText.includes('xsec_token')) {
-            // 尝试多种可能的模式
-            const patterns = [
-              /xsec_token[\s:="\']+([^"\'&]+)/,
-              /xsec_token\s*=\s*["\']([^"\']+)["\']/,
-              /"xsec_token"\s*:\s*["\']([^"\']+)["\']/,
-              /xsec_token\s*:\s*["\']([^"\']+)["\']/,
-              /xsec_token=([^&\s]+)/
-            ];
-            
-            for (const pattern of patterns) {
-              const match = scriptText.match(pattern);
-              if (match) {
-                xsecToken = match[1];
-                console.log('✅ 方法2 - 从页面脚本提取到xsec_token');
+        /**
+         * 提取xsec_token
+         */
+        static extractXsecToken() {
+            const url = window.location.href;
+            console.log('🔍 开始提取xsec_token，当前URL:', url);
+
+            // 方法1: 从URL参数中提取
+            const urlObj = new URL(url);
+            let xsecToken = urlObj.searchParams.get('xsec_token');
+
+            if (xsecToken) {
+                console.log('✅ 方法1 - 从URL参数提取到xsec_token:', xsecToken);
                 return xsecToken;
-              }
-            }
-          }
-        }
-        
-        console.warn('⚠️ 从页面脚本提取xsec_token失败，未找到有效信息');
-        
-      } catch (error) {
-        console.warn('❌ 从页面脚本提取xsec_token失败:', error);
-      }
-      
-      // 方法3: 从Cookie中提取
-      try {
-        console.log('🔍 方法3 - 尝试从Cookie提取xsec_token...');
-        
-        const cookie = document.cookie;
-        const cookieMatch = cookie.match(/xsec_token=([^;]+)/);
-        if (cookieMatch) {
-          xsecToken = cookieMatch[1];
-          console.log('✅ 方法3 - 从Cookie提取到xsec_token');
-          return xsecToken;
-        }
-        
-      } catch (error) {
-        console.warn('❌ 从Cookie提取xsec_token失败:', error);
-      }
-      
-      // 方法4: 从localStorage或sessionStorage中提取
-      try {
-        console.log('🔍 方法4 - 尝试从存储中提取xsec_token...');
-        
-        xsecToken = localStorage.getItem('xsec_token') || sessionStorage.getItem('xsec_token');
-        if (xsecToken) {
-          console.log('✅ 方法4 - 从存储中提取到xsec_token');
-          return xsecToken;
-        }
-        
-      } catch (error) {
-        console.warn('❌ 从存储中提取xsec_token失败:', error);
-      }
-      
-      console.warn('⚠️ 未找到xsec_token，API请求可能会失败');
-      return '';
-    }
-
-    /**
-     * 检查xsec_token是否有效
-     */
-    static isXsecTokenValid(token) {
-      return token && token.length > 10;
-    }
-
-    /**
-     * 获取页面Cookie
-     */
-    static getPageCookie() {
-        return document.cookie;
-    }
-
-    /**
-     * 构建请求头
-     */
-    static buildHeaders() {
-        const cookie = this.getPageCookie();
-        
-        return {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': window.location.href,
-            'Origin': 'https://www.xiaohongshu.com',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Ch-Ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="24"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Cookie': cookie
-        };
-    }
-
-    /**
-     * 清理文本内容
-     */
-    static cleanText(text) {
-        if (!text) return '';
-
-        return text
-            .replace(/\s+/g, ' ')
-            .replace(/[\r\n]/g, ' ')
-            .trim();
-    }
-
-    /**
-     * 格式化日期
-     */
-    static formatDate(timestamp) {
-        if (!timestamp) return '';
-
-        try {
-            const date = new Date(timestamp);
-            return date.toISOString().replace('T', ' ').split('.')[0];
-        } catch (error) {
-            console.warn('日期格式化错误:', error);
-            return '';
-        }
-    }
-
-    /**
-     * 创建下载文件
-     */
-    static createDownloadFile(content, fileName, type = 'text/plain') {
-        const blob = new Blob([content], { type });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.style.display = 'none';
-
-        document.body.appendChild(a);
-        a.click();
-
-        // 清理
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 100);
-
-        console.log(`📥 文件创建成功: ${fileName}`);
-    }
-
-    /**
-     * 从页面直接提取用户信息
-     */
-    static extractUserInfoFromPage(userId) {
-        try {
-            console.log('🔍 尝试从页面直接提取用户信息...');
-
-            // 提取用户昵称
-            const nicknameElements = document.querySelectorAll('.user-name, .nickname, [class*="nickname"], [class*="username"], [class*="user-name"]');
-            const nickname = nicknameElements.length > 0 ? nicknameElements[0].textContent.trim() : '';
-
-            // 提取用户描述
-            const descElements = document.querySelectorAll('.user-desc, .description, [class*="desc"], [class*="description"]');
-            const desc = descElements.length > 0 ? descElements[0].textContent.trim() : '';
-
-            // 提取小红书号
-            const redIdElements = document.querySelectorAll('.red-id, [class*="red-id"], [class*="user-id"]');
-            let redId = '';
-            if (redIdElements.length > 0) {
-                const redIdText = redIdElements[0].textContent.trim();
-                const match = redIdText.match(/小红书号：(\d+)/);
-                redId = match ? match[1] : redIdText;
             }
 
-            // 提取IP属地
-            const ipElements = document.querySelectorAll('.ip-location, [class*="ip-location"], [class*="ip"]');
-            const ipLocation = ipElements.length > 0 ? ipElements[0].textContent.trim() : '';
+            // 方法2: 从页面脚本中提取
+            try {
+                console.log('🔍 方法2 - 尝试从页面脚本提取xsec_token...');
 
-            // 提取关注、粉丝、获赞数
-            const statsElements = document.querySelectorAll('.stats-item, .stat-item, [class*="stat"], [class*="stats"]');
-            let follows = 0, fans = 0, interaction = 0;
+                const scripts = document.querySelectorAll('script');
+                for (const script of scripts) {
+                    const scriptText = script.textContent || '';
+                    if (scriptText.includes('xsec_token')) {
+                        // 尝试多种可能的模式
+                        const patterns = [
+                            /xsec_token[\s:="\']+([^"\'&]+)/,
+                            /xsec_token\s*=\s*["\']([^"\']+)["\']/,
+                            /"xsec_token"\s*:\s*["\']([^"\']+)["\']/,
+                            /xsec_token\s*:\s*["\']([^"\']+)["\']/,
+                            /xsec_token=([^&\s]+)/
+                        ];
 
-            if (statsElements.length >= 3) {
-                follows = this.parseNumber(statsElements[0].textContent);
-                fans = this.parseNumber(statsElements[1].textContent);
-                interaction = this.parseNumber(statsElements[2].textContent);
-            }
-
-            // 提取头像
-            const avatarElements = document.querySelectorAll('.avatar, .user-avatar, [class*="avatar"] img');
-            const image = avatarElements.length > 0 ? avatarElements[0].src : '';
-
-            console.log('✅ 从页面提取用户信息成功:', { nickname, desc, redId, ipLocation, follows, fans, interaction });
-
-            return {
-                user_id: userId,
-                nickname: nickname,
-                desc: desc,
-                image: image,
-                red_id: redId,
-                ip_location: ipLocation,
-                follows: follows,
-                fans: fans,
-                interaction: interaction,
-                collected: 0,
-                tags: [],
-                level: {}
-            };
-        } catch (error) {
-            console.error('❌ 从页面提取用户信息失败:', error);
-            return null;
-        }
-    }
-
-    /**
-     * 解析数字文本
-     */
-    static parseNumber(text) {
-        if (!text) return 0;
-
-        // 清理文本，只保留数字和单位
-        const cleanText = text.replace(/[^\d\.\s万千万亿]/g, '').trim();
-
-        // 处理万、千等单位
-        const numMatch = cleanText.match(/(\d+(?:\.\d+)?)/);
-        if (!numMatch) return 0;
-
-        const num = parseFloat(numMatch[1]);
-
-        if (cleanText.includes('万')) {
-            return num * 10000;
-        } else if (cleanText.includes('千')) {
-            return num * 1000;
-        } else if (cleanText.includes('亿')) {
-            return num * 100000000;
-        }
-
-        return num;
-    }
-
-    /**
-     * 从页面直接提取笔记列表
-     */
-    static extractNotesFromPage() {
-        try {
-            console.log('🔍 尝试从页面直接提取笔记列表...');
-
-            const notes = [];
-            const noteElements = document.querySelectorAll('.note-item, .note-card, [class*="note"], article');
-
-            console.log(`📝 找到 ${noteElements.length} 个笔记元素`);
-
-            noteElements.forEach((element, index) => {
-                try {
-                    // 提取笔记ID
-                    const noteLink = element.querySelector('a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/user/profile/"]');
-                    let noteId = `note_${index}`;
-
-                    if (noteLink) {
-                        const href = noteLink.getAttribute('href');
-                        const match = href.match(/\/(explore|discovery\/item)\/([a-zA-Z0-9]+)/);
-                        if (match) {
-                            noteId = match[2];
-                        } else {
-                            // 从用户页面链接提取
-                            const userNoteMatch = href.match(/\/user\/profile\/[^\/]+\/([a-zA-Z0-9]+)/);
-                            if (userNoteMatch) {
-                                noteId = userNoteMatch[1];
+                        for (const pattern of patterns) {
+                            const match = scriptText.match(pattern);
+                            if (match) {
+                                xsecToken = match[1];
+                                console.log('✅ 方法2 - 从页面脚本提取到xsec_token');
+                                return xsecToken;
                             }
                         }
                     }
-
-                    // 提取标题和描述
-                    const titleElement = element.querySelector('.note-title, .title, [class*="title"], h3, h4');
-                    const descElement = element.querySelector('.note-desc, .desc, [class*="desc"], p');
-                    const title = titleElement ? titleElement.textContent.trim() : '';
-                    const desc = descElement ? descElement.textContent.trim() : '';
-
-                    // 提取图片
-                    const imageElements = element.querySelectorAll('img');
-                    const images = Array.from(imageElements)
-                        .filter(img => img.src && !img.src.includes('data:image'))
-                        .map(img => ({
-                            url: img.src,
-                            original: img.src,
-                            default: img.src
-                        }));
-
-                    // 提取统计数据
-                    const statsElements = element.querySelectorAll('.note-stats, .stats, [class*="stat"], .like, .comment, .collect');
-                    let liked_count = 0, comment_count = 0, collected_count = 0;
-
-                    statsElements.forEach(statElement => {
-                        const text = statElement.textContent || '';
-                        if (text.includes('赞') || text.includes('like')) {
-                            liked_count = this.parseNumber(text);
-                        } else if (text.includes('评论') || text.includes('comment')) {
-                            comment_count = this.parseNumber(text);
-                        } else if (text.includes('收藏') || text.includes('collect')) {
-                            collected_count = this.parseNumber(text);
-                        }
-                    });
-
-                    // 只添加有内容的笔记
-                    if (title || desc || images.length > 0) {
-                        notes.push({
-                            note_id: noteId,
-                            title: title,
-                            desc: desc,
-                            images: images,
-                            liked_count: liked_count,
-                            comment_count: comment_count,
-                            collected_count: collected_count,
-                            share_count: 0,
-                            time: Date.now(),
-                            type: 'note'
-                        });
-                    }
-                } catch (error) {
-                    console.warn('⚠️ 提取单个笔记失败:', error);
                 }
-            });
 
-            console.log('✅ 从页面提取笔记成功，共提取', notes.length, '篇笔记');
-            return notes;
-        } catch (error) {
-            console.error('❌ 从页面提取笔记列表失败:', error);
-            return [];
+                console.warn('⚠️ 从页面脚本提取xsec_token失败，未找到有效信息');
+
+            } catch (error) {
+                console.warn('❌ 从页面脚本提取xsec_token失败:', error);
+            }
+
+            // 方法3: 从Cookie中提取
+            try {
+                console.log('🔍 方法3 - 尝试从Cookie提取xsec_token...');
+
+                const cookie = document.cookie;
+                const cookieMatch = cookie.match(/xsec_token=([^;]+)/);
+                if (cookieMatch) {
+                    xsecToken = cookieMatch[1];
+                    console.log('✅ 方法3 - 从Cookie提取到xsec_token');
+                    return xsecToken;
+                }
+
+            } catch (error) {
+                console.warn('❌ 从Cookie提取xsec_token失败:', error);
+            }
+
+            // 方法4: 从localStorage或sessionStorage中提取
+            try {
+                console.log('🔍 方法4 - 尝试从存储中提取xsec_token...');
+
+                xsecToken = localStorage.getItem('xsec_token') || sessionStorage.getItem('xsec_token');
+                if (xsecToken) {
+                    console.log('✅ 方法4 - 从存储中提取到xsec_token');
+                    return xsecToken;
+                }
+
+            } catch (error) {
+                console.warn('❌ 从存储中提取xsec_token失败:', error);
+            }
+
+            console.warn('⚠️ 未找到xsec_token，API请求可能会失败');
+            return '';
+        }
+
+        /**
+         * 检查xsec_token是否有效
+         */
+        static isXsecTokenValid(token) {
+            return token && token.length > 10;
+        }
+
+        /**
+         * 获取页面Cookie
+         */
+        static getPageCookie() {
+            return document.cookie;
+        }
+
+        /**
+         * 构建请求头
+         */
+        static buildHeaders() {
+            const cookie = this.getPageCookie();
+
+            return {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': window.location.href,
+                'Origin': 'https://www.xiaohongshu.com',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Ch-Ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="24"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Cookie': cookie
+            };
+        }
+
+        /**
+         * 清理文本内容
+         */
+        static cleanText(text) {
+            if (!text) return '';
+
+            return text
+                .replace(/\s+/g, ' ')
+                .replace(/[\r\n]/g, ' ')
+                .trim();
+        }
+
+        /**
+         * 格式化日期
+         */
+        static formatDate(timestamp) {
+            if (!timestamp) return '';
+
+            try {
+                const date = new Date(timestamp);
+                return date.toISOString().replace('T', ' ').split('.')[0];
+            } catch (error) {
+                console.warn('日期格式化错误:', error);
+                return '';
+            }
+        }
+
+        /**
+         * 创建下载文件
+         */
+        static createDownloadFile(content, fileName, type = 'text/plain') {
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.style.display = 'none';
+
+            document.body.appendChild(a);
+            a.click();
+
+            // 清理
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+
+            console.log(`📥 文件创建成功: ${fileName}`);
+        }
+
+        /**
+         * 从页面直接提取用户信息
+         */
+        static extractUserInfoFromPage(userId) {
+            try {
+                console.log('🔍 尝试从页面直接提取用户信息...');
+
+                // 提取用户昵称
+                const nicknameElements = document.querySelectorAll('.user-name, .nickname, [class*="nickname"], [class*="username"], [class*="user-name"]');
+                const nickname = nicknameElements.length > 0 ? nicknameElements[0].textContent.trim() : '';
+
+                // 提取用户描述
+                const descElements = document.querySelectorAll('.user-desc, .description, [class*="desc"], [class*="description"]');
+                const desc = descElements.length > 0 ? descElements[0].textContent.trim() : '';
+
+                // 提取小红书号
+                const redIdElements = document.querySelectorAll('.red-id, [class*="red-id"], [class*="user-id"]');
+                let redId = '';
+                if (redIdElements.length > 0) {
+                    const redIdText = redIdElements[0].textContent.trim();
+                    const match = redIdText.match(/小红书号：(\d+)/);
+                    redId = match ? match[1] : redIdText;
+                }
+
+                // 提取IP属地
+                const ipElements = document.querySelectorAll('.ip-location, [class*="ip-location"], [class*="ip"]');
+                const ipLocation = ipElements.length > 0 ? ipElements[0].textContent.trim() : '';
+
+                // 提取关注、粉丝、获赞数
+                const statsElements = document.querySelectorAll('.stats-item, .stat-item, [class*="stat"], [class*="stats"]');
+                let follows = 0, fans = 0, interaction = 0;
+
+                if (statsElements.length >= 3) {
+                    follows = this.parseNumber(statsElements[0].textContent);
+                    fans = this.parseNumber(statsElements[1].textContent);
+                    interaction = this.parseNumber(statsElements[2].textContent);
+                }
+
+                // 提取头像
+                const avatarElements = document.querySelectorAll('.avatar, .user-avatar, [class*="avatar"] img');
+                const image = avatarElements.length > 0 ? avatarElements[0].src : '';
+
+                console.log('✅ 从页面提取用户信息成功:', { nickname, desc, redId, ipLocation, follows, fans, interaction });
+
+                return {
+                    user_id: userId,
+                    nickname: nickname,
+                    desc: desc,
+                    image: image,
+                    red_id: redId,
+                    ip_location: ipLocation,
+                    follows: follows,
+                    fans: fans,
+                    interaction: interaction,
+                    collected: 0,
+                    tags: [],
+                    level: {}
+                };
+            } catch (error) {
+                console.error('❌ 从页面提取用户信息失败:', error);
+                return null;
+            }
+        }
+
+        /**
+         * 解析数字文本
+         */
+        static parseNumber(text) {
+            if (!text) return 0;
+
+            // 清理文本，只保留数字和单位
+            const cleanText = text.replace(/[^\d\.\s万千万亿]/g, '').trim();
+
+            // 处理万、千等单位
+            const numMatch = cleanText.match(/(\d+(?:\.\d+)?)/);
+            if (!numMatch) return 0;
+
+            const num = parseFloat(numMatch[1]);
+
+            if (cleanText.includes('万')) {
+                return num * 10000;
+            } else if (cleanText.includes('千')) {
+                return num * 1000;
+            } else if (cleanText.includes('亿')) {
+                return num * 100000000;
+            }
+
+            return num;
+        }
+
+        /**
+         * 从页面直接提取笔记列表
+         */
+        static extractNotesFromPage() {
+            try {
+                console.log('🔍 尝试从页面直接提取笔记列表...');
+
+                const notes = [];
+                const noteElements = document.querySelectorAll('.note-item, .note-card, [class*="note"], article');
+
+                console.log(`📝 找到 ${noteElements.length} 个笔记元素`);
+
+                noteElements.forEach((element, index) => {
+                    try {
+                        // 提取笔记ID
+                        const noteLink = element.querySelector('a[href*="/explore/"], a[href*="/discovery/item/"], a[href*="/user/profile/"]');
+                        let noteId = `note_${index}`;
+
+                        if (noteLink) {
+                            const href = noteLink.getAttribute('href');
+                            const match = href.match(/\/(explore|discovery\/item)\/([a-zA-Z0-9]+)/);
+                            if (match) {
+                                noteId = match[2];
+                            } else {
+                                // 从用户页面链接提取
+                                const userNoteMatch = href.match(/\/user\/profile\/[^\/]+\/([a-zA-Z0-9]+)/);
+                                if (userNoteMatch) {
+                                    noteId = userNoteMatch[1];
+                                }
+                            }
+                        }
+
+                        // 提取标题和描述
+                        const titleElement = element.querySelector('.note-title, .title, [class*="title"], h3, h4');
+                        const descElement = element.querySelector('.note-desc, .desc, [class*="desc"], p');
+                        const title = titleElement ? titleElement.textContent.trim() : '';
+                        const desc = descElement ? descElement.textContent.trim() : '';
+
+                        // 提取图片
+                        const imageElements = element.querySelectorAll('img');
+                        const images = Array.from(imageElements)
+                            .filter(img => img.src && !img.src.includes('data:image'))
+                            .map(img => ({
+                                url: img.src,
+                                original: img.src,
+                                default: img.src
+                            }));
+
+                        // 提取统计数据
+                        const statsElements = element.querySelectorAll('.note-stats, .stats, [class*="stat"], .like, .comment, .collect');
+                        let liked_count = 0, comment_count = 0, collected_count = 0;
+
+                        statsElements.forEach(statElement => {
+                            const text = statElement.textContent || '';
+                            if (text.includes('赞') || text.includes('like')) {
+                                liked_count = this.parseNumber(text);
+                            } else if (text.includes('评论') || text.includes('comment')) {
+                                comment_count = this.parseNumber(text);
+                            } else if (text.includes('收藏') || text.includes('collect')) {
+                                collected_count = this.parseNumber(text);
+                            }
+                        });
+
+                        // 只添加有内容的笔记
+                        if (title || desc || images.length > 0) {
+                            notes.push({
+                                note_id: noteId,
+                                title: title,
+                                desc: desc,
+                                images: images,
+                                liked_count: liked_count,
+                                comment_count: comment_count,
+                                collected_count: collected_count,
+                                share_count: 0,
+                                time: Date.now(),
+                                type: 'note'
+                            });
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ 提取单个笔记失败:', error);
+                    }
+                });
+
+                console.log('✅ 从页面提取笔记成功，共提取', notes.length, '篇笔记');
+                return notes;
+            } catch (error) {
+                console.error('❌ 从页面提取笔记列表失败:', error);
+                return [];
+            }
         }
     }
-}
 
-/**
- * 数据处理类
- */
-class DataProcessor {
+    /**
+     * 数据处理类
+     */
+    class DataProcessor {
         /**
          * 处理用户信息
          */
@@ -892,7 +892,7 @@ class DataProcessor {
         DataProcessor
     };
 
-    console.log('🔧 小红书爬虫工具函数库加载完成');
+    console.log('🔧 小红书采集器工具函数库加载完成');
 
     // 消息处理逻辑
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
@@ -900,22 +900,25 @@ class DataProcessor {
 
         // 监听来自弹出页面的消息
         chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-            console.log('🔔 收到消息:', request);
-
-            // 处理不同类型的消息
+            // 只处理我们认识的消息类型，其他消息类型让它们传递给其他监听器
             if (request.action === 'debugPageInfo') {
+                console.log('🔔 收到调试页面信息请求');
                 handleDebugPageInfo(sendResponse);
+                // 返回true表示异步响应
+                return true;
             } else if (request.action === 'executeCrawler') {
+                console.log('🔔 收到执行采集器请求');
                 handleExecuteCrawler(request, sendResponse);
+                // 返回true表示异步响应
+                return true;
             } else if (request.action === 'stopCrawler') {
+                console.log('🔔 收到停止采集器请求');
                 handleStopCrawler(sendResponse);
-            } else {
-                console.warn('⚠️ 未知消息类型:', request.action);
-                sendResponse({ success: false, error: '未知消息类型' });
+                // 返回true表示异步响应
+                return true;
             }
-
-            // 返回true表示异步响应
-            return true;
+            // 对于不认识的消息类型，不输出警告，也不返回响应，让它传递给其他监听器
+            // 这样可以避免干扰其他监听器的正常工作
         });
     }
 
@@ -1005,19 +1008,19 @@ class DataProcessor {
     }
 
     /**
-     * 处理执行爬虫请求
+     * 处理执行采集器请求
      */
     async function handleExecuteCrawler(request, sendResponse) {
         try {
-            console.log('🚀 开始处理执行爬虫请求...', request);
+            console.log('🚀 开始处理执行采集器请求...', request);
 
             const startPage = request.startPage || 1;
 
-            // 执行爬虫
+            // 执行采集器
             const result = await redbookFullCrawler(startPage);
 
             if (result.success) {
-                console.log('✅ 爬虫执行成功:', result);
+                console.log('✅ 采集器执行成功:', result);
                 sendResponse({
                     success: true,
                     userInfo: result.userInfo,
@@ -1026,14 +1029,14 @@ class DataProcessor {
                     fileName: result.fileName
                 });
             } else if (result.terminated) {
-                console.log('🛑 爬虫被用户终止');
+                console.log('🛑 采集器被用户终止');
                 sendResponse({
                     success: false,
                     terminated: true,
-                    message: '爬虫已被用户终止'
+                    message: '采集器已被用户终止'
                 });
             } else {
-                console.error('❌ 爬虫执行失败:', result);
+                console.error('❌ 采集器执行失败:', result);
                 sendResponse({
                     success: false,
                     error: result.message || '未知错误'
@@ -1041,36 +1044,36 @@ class DataProcessor {
             }
 
         } catch (error) {
-            console.error('❌ 处理执行爬虫请求失败:', error);
+            console.error('❌ 处理执行采集器请求失败:', error);
             sendResponse({ success: false, error: error.message });
         }
     }
 
     /**
-     * 处理终止爬虫请求
+     * 处理终止采集器请求
      */
     async function handleStopCrawler(sendResponse) {
         try {
-            console.log('🛑 开始处理终止爬虫请求...');
+            console.log('🛑 开始处理终止采集器请求...');
 
-            // 停止爬虫
+            // 停止采集器
             await StopSignalManager.stopCrawler();
 
-            console.log('✅ 爬虫终止信号发送成功');
-            sendResponse({ success: true, message: '爬虫终止信号已发送' });
+            console.log('✅ 采集器终止信号发送成功');
+            sendResponse({ success: true, message: '采集器终止信号已发送' });
 
         } catch (error) {
-            console.error('❌ 处理终止爬虫请求失败:', error);
+            console.error('❌ 处理终止采集器请求失败:', error);
             sendResponse({ success: false, error: error.message });
         }
     }
 
     /**
-     * 小红书完整爬虫主函数
+     * 小红书完整采集器主函数
      */
     async function redbookFullCrawler(startPage = 1) {
         try {
-            console.log('🔧 小红书爬虫函数开始执行');
+            console.log('🔧 小红书采集器函数开始执行');
 
             // 提取用户ID
             const userId = Utils.extractUserID();
@@ -1098,7 +1101,7 @@ class DataProcessor {
                 `https://edith.xiaohongshu.com/api/sns/web/v2/user/profile?user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://edith.xiaohongshu.com/api/sns/web/v1/user/info?user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://edith.xiaohongshu.com/api/sns/web/v2/user/info?user_id=${userId}&xsec_token=${xsecToken}`,
-                
+
                 // 新增的可能有效端点
                 `https://edith.xiaohongshu.com/api/sns/web/v1/user/detail?user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://edith.xiaohongshu.com/api/sns/web/v2/user/detail?user_id=${userId}&xsec_token=${xsecToken}`,
@@ -1108,11 +1111,11 @@ class DataProcessor {
                 `https://edith.xiaohongshu.com/api/sns/web/v2/user/stats?user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://edith.xiaohongshu.com/api/sns/web/v1/user/overview?user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://edith.xiaohongshu.com/api/sns/web/v2/user/overview?user_id=${userId}&xsec_token=${xsecToken}`,
-                
+
                 // 备用API - 原域名（添加xsec_token参数）
                 `https://www.xiaohongshu.com/api/sns/web/v1/user/otherinfo?target_user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://www.xiaohongshu.com/api/sns/web/v1/user/profile?user_id=${userId}&xsec_token=${xsecToken}`,
-                
+
                 // 移动端API（添加xsec_token参数）
                 `https://m.xiaohongshu.com/api/sns/web/v1/user/otherinfo?target_user_id=${userId}&xsec_token=${xsecToken}`,
                 `https://m.xiaohongshu.com/api/sns/web/v1/user/profile?user_id=${userId}&xsec_token=${xsecToken}`
@@ -1208,11 +1211,11 @@ class DataProcessor {
                         `https://edith.xiaohongshu.com/api/sns/web/v1/user/notes?user_id=${userId}&page=${page}&page_size=20&xsec_token=${xsecToken}`,
                         `https://edith.xiaohongshu.com/api/sns/web/v2/user/notes?user_id=${userId}&page=${page}&page_size=20&xsec_token=${xsecToken}`,
                         `https://edith.xiaohongshu.com/api/sns/web/v1/user/content?user_id=${userId}&page=${page}&page_size=20&xsec_token=${xsecToken}`,
-                        
+
                         // 备用API - 原域名（添加xsec_token参数）
                         `https://www.xiaohongshu.com/api/sns/web/v1/user_posted?num=20&cursor=&user_id=${userId}&xsec_token=${xsecToken}&image_formats=jpg,webp,avif`,
                         `https://www.xiaohongshu.com/api/sns/web/v1/user_posted?page=${page}&page_size=20&user_id=${userId}&xsec_token=${xsecToken}`,
-                        
+
                         // 移动端API（添加xsec_token参数）
                         `https://m.xiaohongshu.com/api/sns/web/v1/user_posted?num=20&cursor=&user_id=${userId}&xsec_token=${xsecToken}&image_formats=jpg,webp,avif`,
                         `https://m.xiaohongshu.com/api/sns/web/v1/user_posted?page=${page}&page_size=20&user_id=${userId}&xsec_token=${xsecToken}`
@@ -1384,15 +1387,15 @@ class DataProcessor {
             };
 
         } catch (error) {
-            console.error('❌ 小红书爬虫执行失败:', error);
+            console.error('❌ 小红书采集器执行失败:', error);
 
             // 如果是用户终止，不显示错误提示
-            if (error.message.includes('爬虫被用户终止')) {
-                console.log('🛑 爬虫已被用户终止');
+            if (error.message.includes('采集器被用户终止')) {
+                console.log('🛑 采集器已被用户终止');
                 return {
                     success: false,
                     terminated: true,
-                    message: '爬虫已被用户终止'
+                    message: '采集器已被用户终止'
                 };
             }
 

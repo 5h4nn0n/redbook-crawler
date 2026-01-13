@@ -3,26 +3,100 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小红书信息提取器</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-  <div id="status">准备就绪</div>
+  <div class="container">
+    <!-- 头部 -->
+    <div class="header">
+      <h2>📱 小红书信息提取器</h2>
+      <p>关爱残障人士，辅助提取小红书信息</p>
+    </div>
 
-  <!-- 场景1：笔记详情页 -->
-  <div class="card" id="detail-panel">
-    <h3>📄 单篇笔记提取</h3>
-    <button id="extractDetailBtn" class="btn btn-red">提取当前笔记 JSON</button>
+    <!-- 状态显示 -->
+    <div id="status">准备就绪</div>
+
+    <!-- 控制台信息 -->
+    <div class="card" id="console-panel">
+      <h3>📢 控制台信息</h3>
+      <div id="console-output" class="console-output"></div>
+    </div>
+
+    <!-- 统计信息 -->
+    <div class="card" id="stats-panel">
+      <h3>📊 采集统计</h3>
+      <div class="stats-container">
+        <div class="stat-item">
+          <span class="stat-label">已采集笔记:</span>
+          <span class="stat-value" id="crawledCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">已发送批次:</span>
+          <span class="stat-value" id="sentBatchCount">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">已处理笔记:</span>
+          <span class="stat-value" id="processedCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 数据处理选项 -->
+    <div class="card">
+      <h3>⚙️ 数据处理选项</h3>
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="dataDestination" id="saveAsJson" value="json" checked> 本地保存为 JSON 文件
+        </label>
+        <label>
+          <input type="radio" name="dataDestination" id="sendToApi" value="api"> 通过 API 同步数据
+        </label>
+      </div>
+      <div id="apiUrlGroup" class="api-url-group">
+        <label for="apiUrl">API 端点 URL:</label>
+        <input type="text" id="apiUrl" class="api-url-input" placeholder="http://localhost/api/v1/redbook/sync">
+      </div>
+      <div class="batch-size-group">
+        <label for="batchSize">每批数据大小:</label>
+        <input type="number" id="batchSize" class="batch-size-input" placeholder="10" min="1" max="10000">
+        <p>设置每批发送到 API 或生成 JSON 文件的数据量</p>
+      </div>
+      <div class="note-limit-group">
+        <label for="noteLimit">笔记总量限制:</label>
+        <input type="number" id="noteLimit" class="note-limit-input" placeholder="100" min="0" max="10000">
+        <p>设置爬取的笔记总量，0表示不限制</p>
+      </div>
+    </div>
+
+    <!-- 场景1：笔记详情页 -->
+    <div class="card" id="download-panel">
+      <div class="checkbox-group">
+        <input type="checkbox" id="downloadMedia" checked>
+        <label for="downloadMedia">下载图片和视频</label>
+      </div>
+    </div>
+
+    <div class="card" id="detail-panel">
+      <h3>📄 单篇笔记提取</h3>
+      <button id="extractDetailBtn" class="btn btn-red">提取当前笔记 JSON</button>
+    </div>
+
+    <!-- 场景2：博主主页 -->
+    <div class="card" id="profile-panel">
+      <h3>🕷️ 深度采集助手</h3>
+      <p>自动翻页、点击详情、采集评论 (速度较慢以防风控)</p>
+      <div class="btn-container">
+        <button id="extractProfileBtn" class="btn btn-blue">开始采集</button>
+        <button id="stopBtn" class="btn btn-gray hidden">停止采集</button>
+      </div>
+    </div>
   </div>
 
-  <!-- 场景2：博主主页 -->
-  <div class="card" id="profile-panel">
-    <h3>🕷️ 深度采集助手</h3>
-    <p style="font-size:11px; color:#888;">自动翻页、点击详情、采集评论 (速度较慢以防风控)</p>
-    <button id="extractProfileBtn" class="btn btn-blue">开始采集</button>
-    <button id="stopBtn" class="btn btn-gray hidden">停止采集</button>
-  </div>
-
+  <script src="config.js"></script>
+  <script src="data_handler.js"></script>
   <script src="popup.js"></script>
 </body>
 

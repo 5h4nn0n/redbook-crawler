@@ -25,7 +25,7 @@ const waitForElement = (selector, timeout = 5000) => {
 };
 
 // --- 核心工具：获取当前页面所有笔记元素 ---
-// 修复发现页采集为空的问题：增加了多种选择器兼容
+// 多种选择器兼容
 const getNoteElements = () => {
   const selectors = [
     '.note-item',           // 常见
@@ -48,52 +48,137 @@ let isRunning = false;
 let crawledUrls = new Set();
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('📢 content.js 收到消息:', request, '来自:', sender);
+
   if (request.action === "start_crawl") {
+    console.log('🚀 收到开始采集请求:', request.mode, request.noteLimit, request.batchSize);
+
     if (isRunning) {
-      sendResponse({ status: "running", message: "爬虫正在运行中..." });
+      console.log('⚠️  采集器正在运行中...');
+      sendResponse({ status: "running", message: "采集器正在运行中..." });
       return;
     }
+
     isRunning = true;
     crawledUrls.clear(); // 每次开始清空记录
+    console.log('✅ 重置采集器状态，准备开始采集');
 
-    startCrawl(request.mode).then(data => {
+    // 开始采集，支持批次处理
+    console.log('📦 开始采集，模式：', request.mode, '笔记总量限制：', request.noteLimit, '批次大小：', request.batchSize);
+    startCrawlWithBatch(request.mode, request.noteLimit, request.batchSize, sendResponse).catch(err => {
       isRunning = false;
-      sendResponse({ status: "complete", data: data });
-    }).catch(err => {
-      isRunning = false;
-      console.error(err);
+      console.error('❌ 采集出错:', err);
       sendResponse({ status: "error", message: err.message });
     });
     return true; // 保持异步通道
-  }
-
-  if (request.action === "stop_crawl") {
+  } else if (request.action === "stop_crawl") {
+    console.log('🛑 收到停止采集请求');
     isRunning = false;
+    console.log('✅ 已停止采集');
     sendResponse({ status: "stopped" });
+  } else {
+    // 处理未知消息类型
+    console.warn('⚠️ 收到未知消息类型:', request.action);
+    sendResponse({ status: "error", message: `未知消息类型: ${request.action}` });
   }
 });
 
-// --- 主流程入口 ---
-async function startCrawl(mode) {
-  console.log(`🚀 开始采集，模式：${mode}`);
+// --- 主流程入口 (支持批次处理) ---
+async function startCrawlWithBatch(mode, noteLimit = 100, batchSize = 1000, sendResponse) {
+  console.log(`🚀 开始采集，模式：${mode}，笔记总量限制：${noteLimit === 0 ? '无限制' : noteLimit}条，批次大小：${batchSize}条`);
 
-  let result = {
-    crawled_at: new Date().toISOString(),
-    mode: mode,
-    data: null
+  let profileData = null;
+  if (mode === 'profile') {
+    profileData = extractProfileBasic();
+    console.log("博主基础信息:", profileData);
+  }
+
+  let totalNotes = [];
+  let currentBatch = [];
+  let batchCount = 0;
+
+  // 开始采集
+  if (mode === 'profile') {
+    await crawlProfileWithBatch(noteLimit, batchSize, currentBatch, totalNotes, profileData, sendResponse);
+  } else if (mode === 'discovery') {
+    await crawlDiscoveryWithBatch(noteLimit, batchSize, currentBatch, totalNotes, sendResponse);
+  }
+
+  // 处理最后一批数据
+  if (currentBatch.length > 0) {
+    batchCount++;
+    await sendBatchData(mode, currentBatch, totalNotes.length, batchCount, profileData, sendResponse);
+  }
+
+  // 发送完成消息
+  sendResponse({
+    status: "complete",
+    data: {
+      data: {
+        crawled_at: new Date().toISOString(),
+        mode: mode,
+        ...(profileData ? profileData : {}),
+        notes: totalNotes
+      }
+    }
+  });
+}
+
+// --- 发送批次数据 --- 
+async function sendBatchData(mode, batchNotes, totalCount, batchCount, profileData, sendResponse) {
+  console.log(`📦 发送第 ${batchCount} 批数据，包含 ${batchNotes.length} 条笔记，总计 ${totalCount} 条`);
+
+  // 构造批次数据
+  let batchData = {
+    data: {
+      crawled_at: new Date().toISOString(),
+      mode: mode,
+      ...(profileData ? profileData : {}),
+      notes: batchNotes,
+      batch_info: {
+        batch_number: batchCount,
+        start_index: totalCount - batchNotes.length,
+        end_index: totalCount,
+        total_notes: totalCount
+      }
+    }
   };
 
+  // 发送批次数据给popup.js
+  chrome.runtime.sendMessage({
+    action: "batch_data",
+    data: batchData
+  });
+
+  // 清空当前批次
+  batchNotes.length = 0;
+}
+
+// --- 主流程入口 (原始版本，用于兼容) ---
+async function startCrawl(mode, noteLimit = 100) {
+  console.log(`🚀 开始采集，模式：${mode}，笔记总量限制：${noteLimit === 0 ? '无限制' : noteLimit}条`);
+
+  let data = null;
   if (mode === 'profile') {
-    result.data = await crawlProfile();
+    data = await crawlProfile(noteLimit);
   } else if (mode === 'discovery') {
-    result.data = await crawlDiscovery();
+    data = await crawlDiscovery(noteLimit);
   }
+
+  // 构造符合API要求的数据结构
+  let result = {
+    data: {
+      crawled_at: new Date().toISOString(),
+      mode: mode,
+      ...data
+    }
+  };
 
   return result;
 }
 
 // --- 场景 A: 博主主页采集 (修复数量少的问题) ---
-async function crawlProfile() {
+async function crawlProfile(noteLimit = 100) {
   // 1. 获取博主基础信息
   const profileData = extractProfileBasic();
   console.log("博主基础信息:", profileData);
@@ -106,12 +191,24 @@ async function crawlProfile() {
   for (let scrollStep = 0; scrollStep < maxScrolls; scrollStep++) {
     if (!isRunning) break;
 
+    // 检查是否达到笔记总量限制
+    if (noteLimit > 0 && notesData.length >= noteLimit) {
+      console.log(`✅ 已达到笔记总量限制 (${noteLimit}条)，停止采集。`);
+      break;
+    }
+
     // 1. 查找当前屏幕内未采集过的笔记
     const currentElements = getNoteElements();
     let hasNewInThisScreen = false;
 
     for (const noteEl of currentElements) {
       if (!isRunning) break;
+
+      // 检查是否达到笔记总量限制
+      if (noteLimit > 0 && notesData.length >= noteLimit) {
+        console.log(`✅ 已达到笔记总量限制 (${noteLimit}条)，停止采集。`);
+        break;
+      }
 
       // 获取链接用于去重
       const linkEl = noteEl.querySelector('a');
@@ -130,7 +227,7 @@ async function crawlProfile() {
         const noteDetail = await processSingleNote(noteEl);
         if (noteDetail) {
           notesData.push(noteDetail);
-          console.log(`✅ 已采集: ${noteDetail.title}`);
+          console.log(`✅ 已采集: ${noteDetail.title} (${notesData.length}/${noteLimit === 0 ? '∞' : noteLimit})`);
         }
       }
     }
@@ -157,10 +254,88 @@ async function crawlProfile() {
   return profileData;
 }
 
+// --- 场景 A: 博主主页采集 (支持批次处理) ---
+async function crawlProfileWithBatch(noteLimit = 100, batchSize = 1000, currentBatch, totalNotes, profileData, sendResponse) {
+  let noNewItemCount = 0;
+  const maxScrolls = 100; // 最大滚动尝试次数，防止死循环
+  let batchCount = 0;
+
+  // 边滚动边采集边处理批次
+  for (let scrollStep = 0; scrollStep < maxScrolls; scrollStep++) {
+    if (!isRunning) break;
+
+    // 检查是否达到笔记总量限制
+    if (noteLimit > 0 && totalNotes.length >= noteLimit) {
+      console.log(`✅ 已达到笔记总量限制 (${noteLimit}条)，停止采集。`);
+      break;
+    }
+
+    // 1. 查找当前屏幕内未采集过的笔记
+    const currentElements = getNoteElements();
+    let hasNewInThisScreen = false;
+
+    for (const noteEl of currentElements) {
+      if (!isRunning) break;
+
+      // 检查是否达到笔记总量限制
+      if (noteLimit > 0 && totalNotes.length >= noteLimit) {
+        console.log(`✅ 已达到笔记总量限制 (${noteLimit}条)，停止采集。`);
+        break;
+      }
+
+      // 获取链接用于去重
+      const linkEl = noteEl.querySelector('a');
+      // 如果没有A标签，尝试找封面图作为唯一标识，或者跳过
+      const uniqueKey = linkEl ? linkEl.href : noteEl.querySelector('img')?.src;
+
+      if (uniqueKey && !crawledUrls.has(uniqueKey)) {
+        crawledUrls.add(uniqueKey);
+        hasNewInThisScreen = true;
+
+        // 滚动到该元素位置，确保点击有效
+        noteEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await sleep(500, 1000);
+
+        // 执行采集单篇逻辑
+        const noteDetail = await processSingleNote(noteEl);
+        if (noteDetail) {
+          currentBatch.push(noteDetail);
+          totalNotes.push(noteDetail);
+          console.log(`✅ 已采集: ${noteDetail.title} (${totalNotes.length}/${noteLimit === 0 ? '∞' : noteLimit})`);
+
+          // 检查是否达到批次大小
+          if (currentBatch.length >= batchSize) {
+            batchCount++;
+            console.log(`📦 批次${batchCount}已满 (${batchSize}条)，开始处理...`);
+            await sendBatchData('profile', currentBatch, totalNotes.length, batchCount, profileData, sendResponse);
+          }
+        }
+      }
+    }
+
+    // 2. 滚动逻辑
+    if (!hasNewInThisScreen) {
+      noNewItemCount++;
+      console.log(`当前屏幕无新笔记，尝试滚动... (/3)`);
+    } else {
+      noNewItemCount = 0; // 重置计数
+    }
+
+    if (noNewItemCount >= 3) {
+      console.log("连续3次滚动未发现新笔记，认为已到底部，停止采集。");
+      break;
+    }
+
+    // 向下滚动一屏
+    window.scrollBy(0, window.innerHeight * 0.8);
+    await sleep(2000, 4000); // 等待加载，时间稍微长一点
+  }
+}
+
 // --- 场景 B: 发现页采集 (修复为空的问题) ---
-async function crawlDiscovery() {
+async function crawlDiscovery(noteLimit = 100) {
   const notesData = [];
-  const maxItems = 10; // 发现页限制采集数量，避免无限采集
+  const maxItems = noteLimit > 0 ? noteLimit : 1000; // 发现页限制采集数量，避免无限采集
 
   // 确保页面加载完成
   await sleep(1000, 2000);
@@ -198,7 +373,7 @@ async function crawlDiscovery() {
         if (noteDetail) {
           notesData.push(noteDetail);
           collectedCount++;
-          console.log(`✅ 发现页采集 [/]: ${noteDetail.title}`);
+          console.log(`✅ 发现页采集 [/]: ${noteDetail.title} (${collectedCount}/${noteLimit === 0 ? '∞' : noteLimit})`);
         }
       }
     }
@@ -210,6 +385,66 @@ async function crawlDiscovery() {
   }
 
   return { notes: notesData };
+}
+
+// --- 场景 B: 发现页采集 (支持批次处理) ---
+async function crawlDiscoveryWithBatch(noteLimit = 100, batchSize = 1000, currentBatch, totalNotes, sendResponse) {
+  const maxItems = noteLimit > 0 ? noteLimit : 1000; // 发现页限制采集数量，避免无限采集
+  let collectedCount = 0;
+  let scrollAttempts = 0;
+  let batchCount = 0;
+
+  // 确保页面加载完成
+  await sleep(1000, 2000);
+
+  while (collectedCount < maxItems && scrollAttempts < 20) {
+    if (!isRunning) break;
+
+    const currentElements = getNoteElements();
+
+    if (currentElements.length === 0) {
+      console.warn("未找到笔记元素，尝试滚动刷新...");
+      window.scrollBy(0, 500);
+      await sleep(2000, 3000);
+      scrollAttempts++;
+      continue;
+    }
+
+    for (const noteEl of currentElements) {
+      if (collectedCount >= maxItems || !isRunning) break;
+
+      const linkEl = noteEl.querySelector('a');
+      const uniqueKey = linkEl ? linkEl.href : noteEl.innerHTML;
+
+      if (uniqueKey && !crawledUrls.has(uniqueKey)) {
+        crawledUrls.add(uniqueKey);
+
+        // 滚动并采集
+        noteEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await sleep(800, 1500);
+
+        const noteDetail = await processSingleNote(noteEl);
+        if (noteDetail) {
+          currentBatch.push(noteDetail);
+          totalNotes.push(noteDetail);
+          collectedCount++;
+          console.log(`✅ 发现页采集 [/]: ${noteDetail.title} (${collectedCount}/${noteLimit === 0 ? '∞' : noteLimit})`);
+
+          // 检查是否达到批次大小
+          if (currentBatch.length >= batchSize) {
+            batchCount++;
+            console.log(`📦 批次${batchCount}已满 (${batchSize}条)，开始处理...`);
+            await sendBatchData('discovery', currentBatch, totalNotes.length, batchCount, null, sendResponse);
+          }
+        }
+      }
+    }
+
+    // 滚动加载更多
+    window.scrollBy(0, window.innerHeight);
+    await sleep(2000, 3000);
+    scrollAttempts++;
+  }
 }
 
 // --- 通用逻辑：处理单篇笔记 (点击-采集-关闭) ---
@@ -330,16 +565,63 @@ async function extractNoteDetail(container) {
     }
   }
 
+  // 提取笔记ID
+  let noteId = "";
+  const noteMask = document.querySelector('.note-detail-mask');
+  if (noteMask) {
+    noteId = noteMask.getAttribute('note-id') || "";
+  }
+
   const comments = await extractComments(container);
 
+  // 提取视频链接
+  const videos = [];
+
+  // 尝试多种选择器查找视频元素
+  const videoSelectors = [
+    '.swiper-slide video',           // 轮播图中的视频
+    '.video-container video',        // 视频容器中的视频
+    '.player video',                 // 播放器中的视频
+    'video'                          // 所有视频元素
+  ];
+
+  for (const selector of videoSelectors) {
+    const videoElements = container.querySelectorAll(selector);
+    for (const video of videoElements) {
+      if (video.src) {
+        videos.push(video.src);
+      } else if (video.querySelector('source')) {
+        // 处理带有source标签的视频
+        const source = video.querySelector('source');
+        if (source.src) {
+          videos.push(source.src);
+        }
+      }
+    }
+  }
+
+  // 兜底：尝试从data属性中提取视频链接
+  const dataVideoElements = container.querySelectorAll('[data-video]');
+  for (const elem of dataVideoElements) {
+    const videoUrl = elem.getAttribute('data-video');
+    if (videoUrl) {
+      videos.push(videoUrl);
+    }
+  }
+
+  // 去重
+  const uniqueVideos = [...new Set(videos)];
+
   return {
+    note_id: noteId,
     title,
     desc,
     publish_time: publishTime,
     publish_ip: publishIp,
     comments_count: comments.length,
     comments: comments,
-    images: Array.from(container.querySelectorAll('.swiper-slide img')).map(img => img.src)
+    images: Array.from(container.querySelectorAll('.swiper-slide img')).map(img => img.src),
+    videos: uniqueVideos
   };
 }
 
